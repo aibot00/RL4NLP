@@ -25,6 +25,8 @@ namespace ml
 {
 
 
+
+
 //输出层 lookup table
 class VocabHash
 {
@@ -48,7 +50,7 @@ public:
     }
 
     //search
-    //Returns position of a word in the vocabulary
+    //return position of a word in the dict 
     //if the word is not found, returns -1
     int search_vocab(char* word)
     {
@@ -79,14 +81,18 @@ public:
 
     int learn_vocab_from_train(const char* file_name);
 
-public:
-    int *vocab_hash = NULL;
-    struct vocab_word *vocab = NULL;
-    long long vocab_size = 0;
-    long long vocab_max_size = 1000;
+private:
+    VocabHash(const VocabHash&);
+    VocabHash& operator=(const VocabHash&);
 
-    W2VOption* opt = NULL;
+public:
+    int *vocab_hash; 
+    struct vocab_word *vocab;
+    long long vocab_size;
+    long long vocab_max_size;
+    W2VOption* opt;
 };
+
 
 
 };

@@ -49,16 +49,16 @@ typedef float real;                    // Precision of float number
 const int vocab_hash_size = 30000000;  // Maximum 30 * 0.7 = 21M words in the vocabular
 
 
+//word2vec word struct
 struct vocab_word
 {
-    vocab_word(): cn(0), point(NULL), word(NULL), code(NULL), codelen(0) { }
-    long long cn;
-    int *point;
-    char *word;
-    char *code;
-    char codelen;
+    vocab_word(): point(NULL), word(NULL), code(NULL), codelen(0), cn(0) { }
+    char *word;   
+    char *code;   //humffman code
+    char codelen; //huffman code len
+    int  *point;  //for root to level
+    long long cn; //word cnt
 };
-
 
 
 };

@@ -76,6 +76,7 @@ int W2VModel::parser(int argc, char* argv[])
 
 int W2VModel::train()
 {
+    int ret_code = RET_SUCC;
     if (!is_init)
     {
         std::cerr << "ERROR: w2v model not init, can not run train" << std::endl;
@@ -129,44 +130,14 @@ int W2VModel::train()
     }
 
     //save
-    this->save();
-
+    if (this->save() != RET_SUCC) {
+        ret_code = RET_FAIL;
+    }
+    
     //clean
     free(pt);
     pt = NULL;
-    return RET_SUCC;
-}
-
-
-int W2VModel::init_unigram_table()
-{
-    int a, i;
-    double train_words_pow = 0;
-    double d1, power = 0.75;
-    
-    table = (int *)malloc(table_size * sizeof(int));
-    
-    for (a = 0; a < vocab_dic.vocab_size; a++)
-    {
-        train_words_pow += pow(vocab_dic.vocab[a].cn, power);
-    } 
-
-    i = 0;
-    d1 = pow(vocab_dic.vocab[i].cn, power) / train_words_pow;
-
-    for (a = 0; a < table_size; a++)
-    {
-        table[a] = i;
-        if (a / (double)table_size > d1) {
-            i++;
-            d1 += pow(vocab_dic.vocab[i].cn, power) / train_words_pow;
-        }
-        if (i >= vocab_dic.vocab_size)
-        {
-            i = vocab_dic.vocab_size - 1;
-        }
-    }    
-    return RET_SUCC;
+    return ret_code;
 }
 
 
@@ -256,6 +227,7 @@ int W2VModel::run_thread(void* id)
             continue;
         }
 
+        //clean project layer and delta
         word = sen[sentence_position];
         if (word == -1) continue;
         for (c = 0; c < layer1_size; c++) {
@@ -265,11 +237,14 @@ int W2VModel::run_thread(void* id)
         next_random = next_random * (unsigned long long)25214903917 + 11;
         b = next_random % opt.window;
 
-        if (opt.cbow) 
-        {  //train the cbow architecture
-            // in -> hidden
+        //train the cbow architecture
+        if (opt.cbow)
+        {
+            //input layer  -> project layer
+            //random real window size
             cw = 0;
-            for (a = b; a < opt.window * 2 + 1 - b; a++) if (a != opt.window)
+            for (a = b; a < opt.window * 2 + 1 - b; a++)
+            if (a != opt.window)
             {
                 c = sentence_position - opt.window + a;
                 if (c < 0) continue;
@@ -277,6 +252,7 @@ int W2VModel::run_thread(void* id)
                 
                 last_word = sen[c];
                 if (last_word == -1) continue;
+
                 for (c = 0; c < layer1_size; c++) {
                     neu1[c] += syn0[c + last_word * layer1_size];
                 }                
@@ -285,7 +261,8 @@ int W2VModel::run_thread(void* id)
 
             if (cw)
             {
-                for (c = 0; c < layer1_size; c++) neu1[c] /= cw;
+                for (c = 0; c < layer1_size; c++) neu1[c] /= cw;  //avg project vector
+
                 if (opt.hs)
                 {
                     for (d = 0; d < vocab_dic.vocab[word].codelen; d++)
@@ -297,6 +274,7 @@ int W2VModel::run_thread(void* id)
                         if (f <= -MAX_EXP) continue;
                         else if (f >= MAX_EXP) continue;
                         else f = expTable[(int)((f + MAX_EXP) * (EXP_TABLE_SIZE / MAX_EXP / 2))];
+
                         // 'g' is the gradient multiplied by the learning rate
                         g = (1 - vocab_dic.vocab[word].code[d] - f) * opt.alpha;
                         // Propagate errors output -> hidden
@@ -334,15 +312,20 @@ int W2VModel::run_thread(void* id)
                 }
 
                 // hidden -> in
-                for (a = b; a < opt.window * 2 + 1 - b; a++) if (a != opt.window)
+                for (a = b; a < opt.window * 2 + 1 - b; a++)
+                if (a != opt.window)
                 {
                     c = sentence_position - opt.window + a;
                     if (c < 0) continue;
                     if (c >= sentence_length) continue;
+
                     last_word = sen[c];
                     if (last_word == -1) continue;
-                    for (c = 0; c < layer1_size; c++) syn0[c + last_word * layer1_size] += neu1e[c];
+                    for (c = 0; c < layer1_size; c++) {
+                        syn0[c + last_word * layer1_size] += neu1e[c];
+                    }
                 }
+            
             }
         }
         else {  //train skip-gram
@@ -416,7 +399,6 @@ int W2VModel::run_thread(void* id)
     
     return 0;
 }
-
 
 
 int W2VModel::save()
@@ -517,7 +499,6 @@ int W2VModel::save()
 }
 
 
-
 int W2VModel::destroy()
 {
     if (syn0 != NULL) {
@@ -543,80 +524,100 @@ int W2VModel::destroy()
 
 int W2VModel::init()
 {
-    int i = 0;
-
-    vocab_dic.init(&opt);
-
     //init exptable
-    //sigmoid 函数查表： 1~1000 对应到 -6 ~ 6
+    //sigmoid 函数查表： 1~1000 对应到 [−6,6)
     //        对应关系： i -> i* 6*2 /1000 - 6
     // 1 / (1+e^-x) = e^x /(e^x + 1)
     expTable = (real *)malloc((EXP_TABLE_SIZE + 1) * sizeof(real));
-    for (i = 0; i < EXP_TABLE_SIZE; i++)
+    for (int i = 0; i < EXP_TABLE_SIZE; i++)
     {
         expTable[i] = exp((i / (real)EXP_TABLE_SIZE * 2 - 1) * MAX_EXP); // Precompute the exp() table
         expTable[i] = expTable[i] / (expTable[i] + 1);                   // Precompute f(x) = x / (x + 1)
     }
 
+    //init vocab_dic
+    vocab_dic.init(&opt);
     return RET_SUCC;
 }
 
 
 int W2VModel::init_net()
 {
-    long long a, b;
+    long long i = 0;
+    long long j = 0;
     unsigned long long next_random = 1;
 
     long long layer1_size = opt.layer1_size;
     long long vocab_size = vocab_dic.vocab_size; 
-
-    a = posix_memalign((void **)&syn0, 128, (long long)vocab_size * layer1_size * sizeof(real));
-    if (syn0 == NULL) {printf("Memory allocation failed\n"); exit(1);}
-
-    if (opt.hs) {
-        a = posix_memalign((void **)&syn1, 128, (long long)vocab_size * layer1_size * sizeof(real));
-        if (syn1 == NULL) {printf("Memory allocation failed\n"); exit(1);}
-        for (a = 0; a < vocab_size; a++) for (b = 0; b < layer1_size; b++)
-        syn1[a * layer1_size + b] = 0;
+    
+    //malloc word->vec matrix and init [-0.5/layer1_size, 0.5/layer1_size]
+    size_t matrix_size = (long long)vocab_size * layer1_size * sizeof(real);
+    i = posix_memalign((void **)&syn0, 128, matrix_size);
+    if (syn0 == NULL) { 
+        std::cerr << "ERROR: init net malloc syn0 error!" << std::endl;
+        return RET_FAIL;
+    }
+    for (i = 0; i < vocab_size; ++i)
+    {    
+        for (j = 0; j < layer1_size; ++j) {
+            next_random = next_random * (unsigned long long)25214903917 + 11;
+            syn0[i * layer1_size + j] = (((next_random & 0xFFFF) / (real)65536) - 0.5) / layer1_size;
+        }
     }
 
+    //Hierarchical Softmax
+    if (opt.hs) {
+        i = posix_memalign((void **)&syn1, 128, matrix_size);
+        if (syn1 == NULL) { 
+            std::cerr << "ERROR: init net malloc syn1 error!" << std::endl;
+            return RET_FAIL;
+        }
+        for (i = 0; i < vocab_size; ++i)
+        {    
+            for (j = 0; j < layer1_size; ++j) {
+                syn1[i * layer1_size + j] = 0;
+            }
+        }
+    }
+
+    //negtive sample
     if (opt.negative > 0)
     {
-        a = posix_memalign((void **)&syn1neg, 128, (long long)vocab_size * layer1_size * sizeof(real));
-        if (syn1neg == NULL) {printf("Memory allocation failed\n"); exit(1);}
-        for (a = 0; a < vocab_size; a++) for (b = 0; b < layer1_size; b++)
-        syn1neg[a * layer1_size + b] = 0;
+        i = posix_memalign((void **)&syn1neg, 128, matrix_size);
+        if (syn1 == NULL) { 
+            std::cerr << "ERROR: init net malloc syn1 error!" << std::endl;
+            return RET_FAIL;
+        }
+        for (i = 0; i < vocab_size; ++i)
+        {    
+            for (j = 0; j < layer1_size; ++j) {
+                syn1neg[i * layer1_size + j] = 0;
+            }
+        }
     }
-
-    for (a = 0; a < vocab_size; a++) for (b = 0; b < layer1_size; b++)
-    {
-        next_random = next_random * (unsigned long long)25214903917 + 11;
-        syn0[a * layer1_size + b] = (((next_random & 0xFFFF) / (real)65536) - 0.5) / layer1_size;
-    }
-
     return create_huffman_tree();
 }
 
 
-
-// Create binary Huffman tree using the word counts
+// Create Huffman tree using the word counts
 // Frequent words will have short uniqe binary codes
 int W2VModel::create_huffman_tree()
 {
-    long long a, b, i, min1i, min2i, pos1, pos2, point[MAX_CODE_LENGTH];
+    long long a, b, i, min1i, min2i, pos1, pos2;
     char code[MAX_CODE_LENGTH];
+    long long point[MAX_CODE_LENGTH];
     long long vocab_size = vocab_dic.vocab_size; 
 
     long long *count = (long long *)calloc(vocab_size * 2 + 1, sizeof(long long));
     long long *binary = (long long *)calloc(vocab_size * 2 + 1, sizeof(long long));
     long long *parent_node = (long long *)calloc(vocab_size * 2 + 1, sizeof(long long));
 
-    for (a = 0; a < vocab_size; a++) count[a] = vocab_dic.vocab[a].cn;
-    for (a = vocab_size; a < vocab_size * 2; a++) count[a] = 1e15;
+    for (i = 0; i < vocab_size; ++i) count[i] = vocab_dic.vocab[i].cn;
+    for (i = vocab_size; i < vocab_size * 2; ++i) count[a] = 1e15;
 
+    // Following algorithm constructs the Huffman tree by adding one node at a time
     pos1 = vocab_size - 1;
     pos2 = vocab_size;
-    // Following algorithm constructs the Huffman tree by adding one node at a time
     for (a = 0; a < vocab_size - 1; a++)
     {
         // First, find two smallest nodes 'min1, min2'
@@ -668,8 +669,11 @@ int W2VModel::create_huffman_tree()
 
         vocab_dic.vocab[a].codelen = i;
         vocab_dic.vocab[a].point[0] = vocab_size - 2;
-        for (b = 0; b < i; b++) {
+        for (b = 0; b < i; b++)
+        {
+            //编码的反转
             vocab_dic.vocab[a].code[i - b - 1] = code[b];
+            //从根结点到叶子节点的路径
             vocab_dic.vocab[a].point[i - b] = point[b] - vocab_size;
         }
     }
@@ -677,6 +681,37 @@ int W2VModel::create_huffman_tree()
     free(count);
     free(binary);
     free(parent_node);
+    return RET_SUCC;
+}
+
+
+//for negative sample
+int W2VModel::init_unigram_table()
+{
+    int a, i;
+    double train_words_pow = 0;
+    double d1, power = 0.75;
+
+    for (i = 0; i < vocab_dic.vocab_size; ++i) {
+        train_words_pow += pow(vocab_dic.vocab[i].cn, power);
+    }
+
+    i = 0;
+    d1 = pow(vocab_dic.vocab[i].cn, power) / train_words_pow;
+    table = (int *)malloc(table_size * sizeof(int));
+
+    for (a = 0; a < table_size; a++)
+    {
+        table[a] = i;
+        if (a / (double)table_size > d1) {
+            i++;
+            d1 += pow(vocab_dic.vocab[i].cn, power) / train_words_pow;
+        }
+        if (i >= vocab_dic.vocab_size)
+        {
+            i = vocab_dic.vocab_size - 1;
+        }
+    }
     return RET_SUCC;
 }
 

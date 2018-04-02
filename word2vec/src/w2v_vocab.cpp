@@ -21,14 +21,13 @@ namespace ml
 {
 
 
-VocabHash::VocabHash()
+VocabHash::VocabHash(): vocab_hash(NULL), vocab(NULL), vocab_size(0), vocab_max_size(1000), opt(NULL)
 {
-
 }
 
 VocabHash::~VocabHash()
 {
-
+    this->destroy();
 }
 
 
@@ -45,6 +44,36 @@ int VocabHash::init(W2VOption* opt)
 
     return RET_SUCC;
 } 
+
+
+int VocabHash::destroy()
+{
+    //clean vocab node buf
+    for (int i = 0; i < vocab_size; ++i)
+    {
+        if (vocab[i].word != NULL) {
+            free(vocab[i].word);
+        }
+        if (vocab[i].point != NULL) {
+            free(vocab[i].point);
+        }
+        if (vocab[i].code != NULL) {
+            free(vocab[i].code);
+        }
+    }
+
+    if (vocab != NULL) {
+        free(vocab);
+        vocab = NULL;
+    }
+    if (vocab_hash != NULL) {
+        free(vocab_hash);
+        vocab_hash = NULL;
+    }
+    vocab_size = 0;
+
+    return RET_SUCC;
+}
 
 
 
@@ -129,6 +158,7 @@ int VocabHash::sort_vocab()
     return RET_SUCC;
 }
 
+
 // Reduces the vocabulary by removing infrequent tokens
 int VocabHash::reduce_vocab()
 {
@@ -161,7 +191,6 @@ int VocabHash::reduce_vocab()
         while (vocab_hash[hash] != -1) hash = (hash + 1) % vocab_hash_size;
         vocab_hash[hash] = i;
     }
-
     fflush(stdout);
     opt->min_reduce++;
     return RET_SUCC;
@@ -189,8 +218,8 @@ int VocabHash::load_vocab(const char* file_name)
         return RET_FAIL;
     }
 
-    long long a, i = 0;
     char c;
+    long long a, i = 0;
     char word[MAX_STRING] = {0};
     
     FILE *fin = fopen(file_name, "rb");
@@ -199,9 +228,8 @@ int VocabHash::load_vocab(const char* file_name)
         exit(1);
     }
     
-    for (a = 0; a < vocab_hash_size; a++) vocab_hash[a] = -1;
-
     vocab_size = 0;
+    for (a = 0; a < vocab_hash_size; a++) vocab_hash[a] = -1;
     while (1)
     {
         read_word(word, fin);
@@ -233,9 +261,9 @@ int VocabHash::learn_vocab_from_train(const char* file_name)
     if (file_name == NULL) {
         return RET_FAIL;
     }
-    FILE *fin = NULL;
     long long a, i;
     char word[MAX_STRING] = {0};
+    FILE *fin = NULL;
 
     for (i = 0; i < vocab_hash_size; ++i) vocab_hash[i] = -1;
 
@@ -253,7 +281,6 @@ int VocabHash::learn_vocab_from_train(const char* file_name)
         if (feof(fin)) break;
 
         opt->train_words++;
-
         if ((opt->debug_mode > 1) && (opt->train_words % 100000 == 0))
         {
             printf("%lldK%c", opt->train_words / 1000, 13);
@@ -279,22 +306,6 @@ int VocabHash::learn_vocab_from_train(const char* file_name)
 
     opt->file_size = ftell(fin);
     fclose(fin);
-    return RET_SUCC;
-}
-
-
-int VocabHash::destroy()
-{
-    if (vocab != NULL)
-    {
-        free(vocab);
-        vocab = NULL;
-    }
-    if (vocab_hash != NULL)
-    {
-        free(vocab_hash);
-        vocab_hash = NULL;
-    }
     return RET_SUCC;
 }
 
