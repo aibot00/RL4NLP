@@ -20,10 +20,12 @@ rewrite the word2vec.c with cpp, make the code more readable.
 
 
 
-[参考]
+---
+*[参考]
+```
 http://www.cnblogs.com/sxron/p/5975596.html
 https://blog.csdn.net/itplus/article/details/37969519
 https://github.com/dav/word2vec
 http://www.broadview.com.cn/article/282
-
+```
 
