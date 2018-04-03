@@ -56,7 +56,17 @@ W2VModel* W2VModel::get_instance()
 W2VModel::W2VModel()
 {
     is_init = false;
+    word_count_actual = 0;
+
+    //matrix
+    syn0 = NULL;
+    syn1 = NULL;
+    syn1neg = NULL;
+    expTable = NULL;   //sigmoid table        
+    table = NULL;
 }
+
+
 
 W2VModel::~W2VModel()
 {

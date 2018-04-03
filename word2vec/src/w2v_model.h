@@ -70,24 +70,23 @@ private:
     static W2VModel *_instance;
 
 public:
-    bool is_init = false;
+    bool is_init;
 
     W2VOption  opt;
 
     //data
     VocabHash  vocab_dic;
     
-    long long word_count_actual = 0;
+    long long word_count_actual;
     
     //matrix
-    real *syn0 = NULL;
-    real *syn1 = NULL;
-    real *syn1neg = NULL;
-    real *expTable = NULL;   //sigmoid table
+    real *syn0;
+    real *syn1;
+    real *syn1neg;
+    real *expTable;   //sigmoid table
     
     const int table_size = 1e8;
-    int *table = NULL;
-
+    int *table;
     clock_t start;
 };
 

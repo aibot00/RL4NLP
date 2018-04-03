@@ -100,7 +100,7 @@ int LookUpTable::load(const char* model_file)
         //add to hash
         this->word_idx[word] = offset;
     }
-    
+
     fclose(infile);
     return 0;
 }
@@ -136,7 +136,6 @@ int w2v_train(int argc, char* argv[])
     std::cout << "tain model done" << std::endl;
     return 0;
 }
-
 
 
 void* w2v_load(const char* model_file)
