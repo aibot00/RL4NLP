@@ -12,23 +12,32 @@
  * @version $Revision$ 
  * @brief  test model
  **/
+#include "w2v_api.h"
+#include <iostream>
 
 
-#include "w2v_model.h"
+int sample()
+{
+    void* m = ml::w2v_load("./model2");
+
+    float* vec;
+    int size;
+    if (ml::w2v_search(m, "</s>", vec, size) != 0) {
+        std::cout << "cant not find  key" << std::endl;
+    }
+    
+    for (int i =0; i < size; ++i) {
+        std::cout << vec[i] << " ";
+        std::cout << " 1111 " << std::endl;
+    }
+    ml::w2v_destroy(m);
+    return 0;
+}
 
 
 ///// mian /////
 int main(int argc, char* argv[])
 {
-    ml::W2VModel* m = ml::W2VModel::get_instance();
-    m->parser(argc, argv);
-    m->train();
-    
-    delete m;
-    m = NULL;
-
-    std::cout << "done" << std::endl;
-    return 0;
+    return ml::w2v_train(argc, argv);
 }
-
 

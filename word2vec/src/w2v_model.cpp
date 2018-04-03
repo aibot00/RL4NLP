@@ -14,6 +14,8 @@
  *  
  **/
 #include "w2v_model.h"
+#include <thread>
+
 
 namespace ml
 {
@@ -115,7 +117,10 @@ int W2VModel::train()
     }
 
     //init net
-    init_net();
+    if (init_net() != RET_SUCC) {
+        std::cerr << "ERROR: w2v init_net error" << std::endl;
+        return -1;
+    }
     if (opt.negative > 0) {
         this->init_unigram_table();
     }
@@ -411,7 +416,7 @@ int W2VModel::save()
     if (opt.classes == 0) 
     {
         // Save the word vectors
-        fprintf(fo, "%lld %lld\n", vocab_size, layer1_size);
+        fprintf(fo, "%ld %ld\n", vocab_size, layer1_size);
         
         for (a = 0; a < vocab_size; a++)
         {
@@ -549,14 +554,43 @@ int W2VModel::init_net()
 
     long long layer1_size = opt.layer1_size;
     long long vocab_size = vocab_dic.vocab_size; 
-    
+
     //malloc word->vec matrix and init [-0.5/layer1_size, 0.5/layer1_size]
-    size_t matrix_size = (long long)vocab_size * layer1_size * sizeof(real);
+    long long matrix_size = vocab_size * layer1_size * sizeof(real);
     i = posix_memalign((void **)&syn0, 128, matrix_size);
     if (syn0 == NULL) { 
         std::cerr << "ERROR: init net malloc syn0 error!" << std::endl;
         return RET_FAIL;
     }
+    
+    //Hierarchical Softmax
+    if (opt.hs) {
+        i = posix_memalign((void **)&syn1, 128, matrix_size);
+        if (syn1 == NULL) { 
+            std::cerr << "ERROR: init net malloc syn1 error!" << std::endl;
+            return RET_FAIL;
+        }
+        for (i = 0; i < vocab_size; ++i) {    
+            for (j = 0; j < layer1_size; ++j) {
+                syn1[i * layer1_size + j] = 0;
+            }
+        }
+    }
+    //negtive sample
+    if (opt.negative > 0)
+    {
+        i = posix_memalign((void **)&syn1neg, 128, matrix_size);
+        if (syn1neg == NULL) { 
+            std::cerr << "ERROR: init net malloc syn1neg error!" << std::endl;
+            return RET_FAIL;
+        }
+        for (i = 0; i < vocab_size; ++i) {    
+            for (j = 0; j < layer1_size; ++j) {
+                syn1neg[i * layer1_size + j] = 0;
+            }
+        }
+    }
+    
     for (i = 0; i < vocab_size; ++i)
     {    
         for (j = 0; j < layer1_size; ++j) {
@@ -565,36 +599,6 @@ int W2VModel::init_net()
         }
     }
 
-    //Hierarchical Softmax
-    if (opt.hs) {
-        i = posix_memalign((void **)&syn1, 128, matrix_size);
-        if (syn1 == NULL) { 
-            std::cerr << "ERROR: init net malloc syn1 error!" << std::endl;
-            return RET_FAIL;
-        }
-        for (i = 0; i < vocab_size; ++i)
-        {    
-            for (j = 0; j < layer1_size; ++j) {
-                syn1[i * layer1_size + j] = 0;
-            }
-        }
-    }
-
-    //negtive sample
-    if (opt.negative > 0)
-    {
-        i = posix_memalign((void **)&syn1neg, 128, matrix_size);
-        if (syn1 == NULL) { 
-            std::cerr << "ERROR: init net malloc syn1 error!" << std::endl;
-            return RET_FAIL;
-        }
-        for (i = 0; i < vocab_size; ++i)
-        {    
-            for (j = 0; j < layer1_size; ++j) {
-                syn1neg[i * layer1_size + j] = 0;
-            }
-        }
-    }
     return create_huffman_tree();
 }
 
@@ -613,7 +617,7 @@ int W2VModel::create_huffman_tree()
     long long *parent_node = (long long *)calloc(vocab_size * 2 + 1, sizeof(long long));
 
     for (i = 0; i < vocab_size; ++i) count[i] = vocab_dic.vocab[i].cn;
-    for (i = vocab_size; i < vocab_size * 2; ++i) count[a] = 1e15;
+    for (i = vocab_size; i < vocab_size * 2; ++i) count[i] = 1e15;
 
     // Following algorithm constructs the Huffman tree by adding one node at a time
     pos1 = vocab_size - 1;
@@ -714,6 +718,7 @@ int W2VModel::init_unigram_table()
     }
     return RET_SUCC;
 }
+
 
 
 };

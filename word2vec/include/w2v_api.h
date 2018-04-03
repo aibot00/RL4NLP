@@ -19,7 +19,6 @@ namespace ml
 
 int w2v_train(int argc, char* argv[]);
 
-
 void* w2v_load(const char* model_file);
 
 int w2v_search(void* model, const char* word, float* &vec, int & size);

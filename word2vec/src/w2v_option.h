@@ -23,6 +23,7 @@
 namespace ml
 {
 
+
 // option
 class W2VOption
 {
@@ -32,7 +33,7 @@ public:
 
     int reset();
     
-    int help_info();
+    static int help_info();
     
     int parser_cmd(int argc, char **argv);
     

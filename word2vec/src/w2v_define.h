@@ -52,7 +52,7 @@ const int vocab_hash_size = 30000000;  // Maximum 30 * 0.7 = 21M words in the vo
 //word2vec word struct
 struct vocab_word
 {
-    vocab_word(): point(NULL), word(NULL), code(NULL), codelen(0), cn(0) { }
+    vocab_word(): word(NULL), code(NULL), codelen(0), point(NULL), cn(0) { }
     char *word;   
     char *code;   //humffman code
     char codelen; //huffman code len
